@@ -3,7 +3,7 @@
 """
 import aiosqlite
 from datetime import datetime, timedelta, timezone
-from config import DB_PATH
+from config import DB_PATH, ADMIN_IDS
 
 
 class Database:
@@ -143,7 +143,6 @@ class Database:
 
     async def set_premium(self, user_id: int, days: int):
         user = await self.get_user(user_id)
-        # Если уже есть активный premium — продлеваем
         now = datetime.now(timezone.utc)
         if user and user["is_premium"] and user["premium_until"]:
             current_until = datetime.fromisoformat(user["premium_until"])
@@ -160,13 +159,16 @@ class Database:
         await self.db.commit()
 
     async def is_premium(self, user_id: int) -> bool:
+        # 👑 ТВОЙ ID ВСЕГДА ИМЕЕТ ВЕЧНЫЙ PREMIUM БЕСПЛАТНО
+        if user_id in ADMIN_IDS:
+            return True
+
         user = await self.get_user(user_id)
         if not user or not user["is_premium"]:
             return False
         if user["premium_until"]:
             until = datetime.fromisoformat(user["premium_until"])
             now = datetime.now(timezone.utc)
-            # Handle naive datetime from DB
             if until.tzinfo is None:
                 until = until.replace(tzinfo=timezone.utc)
             if until < now:
@@ -186,6 +188,10 @@ class Database:
         await self.db.commit()
 
     async def use_free_unmask(self, user_id: int) -> bool:
+        # Владелец может раскрывать сообщения всегда бесплатно!
+        if user_id in ADMIN_IDS:
+            return True
+
         user = await self.get_user(user_id)
         if user and user["free_unmasks"] > 0:
             await self.db.execute(
@@ -271,7 +277,7 @@ class Database:
             )
             await self.db.commit()
         except Exception:
-            pass  # duplicate
+            pass
 
     async def referral_count(self, referrer_id: int) -> int:
         async with self.db.execute(
