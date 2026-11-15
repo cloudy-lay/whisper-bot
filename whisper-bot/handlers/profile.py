@@ -9,6 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 from database import Database
 from keyboards import profile_kb, share_link_kb, main_menu_kb, cancel_kb
 from utils import get_anon_link, escape_html, format_number
+from config import ADMIN_IDS
 
 router = Router()
 
@@ -25,11 +26,21 @@ async def show_profile(callback: CallbackQuery, db: Database):
         await callback.answer("❌ Сначала нажми /start", show_alert=True)
         return
 
+    is_admin = user_id in ADMIN_IDS
     is_prem = await db.is_premium(user_id)
-    premium_badge = "⭐ Premium" if is_prem else "Бесплатный"
-    premium_until = ""
-    if is_prem and user["premium_until"]:
-        premium_until = f"\n📅 Premium до: <code>{user['premium_until'][:10]}</code>"
+
+    if is_admin:
+        premium_badge = "👑 Создатель (Вечный Premium)"
+        premium_until = ""
+        free_unmasks_text = "Бесконечно ♾️"
+    elif is_prem:
+        premium_badge = "⭐ Premium"
+        premium_until = f"\n📅 Premium до: <code>{user['premium_until'][:10]}</code>" if user["premium_until"] else ""
+        free_unmasks_text = str(user["free_unmasks"])
+    else:
+        premium_badge = "Бесплатный"
+        premium_until = ""
+        free_unmasks_text = str(user["free_unmasks"])
 
     ref_count = await db.referral_count(user_id)
     link = get_anon_link(user["unique_code"])
@@ -43,7 +54,7 @@ async def show_profile(callback: CallbackQuery, db: Database):
         f"📩 Получено сообщений: <b>{format_number(user['messages_received'])}</b>\n"
         f"📤 Отправлено: <b>{format_number(user['messages_sent'])}</b>\n"
         f"👥 Рефералов: <b>{ref_count}</b>\n"
-        f"🔓 Бесплатных раскрытий: <b>{user['free_unmasks']}</b>\n\n"
+        f"🔓 Раскрытий авторов: <b>{free_unmasks_text}</b>\n\n"
         f"✉️ Приветствие: {greeting_text}\n\n"
         f"🔗 Твоя ссылка:\n<code>{link}</code>"
     )
