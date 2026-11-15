@@ -4,8 +4,10 @@
 """
 import asyncio
 import logging
+import os
 import sys
 
+from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -17,6 +19,22 @@ from middlewares import DatabaseMiddleware, UserActivityMiddleware
 
 # Handlers
 from handlers import start, messages, profile, premium, referral, admin
+
+
+# ── Простой пинг-сервер для предотвращения таймаутов на Render ──
+async def health_check(request):
+    return web.Response(text="Bot is running OK", status=200)
+
+async def start_web_server():
+    port = int(os.environ.get("PORT", 8080))
+    app = web.Application()
+    app.router.add_get("/", health_check)
+    app.router.add_get("/health", health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logging.getLogger("whisper").info(f"🌐 Keep-Alive веб-сервер запущен на порту {port}")
 
 
 async def main():
@@ -59,6 +77,9 @@ async def main():
         referral.router,
         admin.router,
     )
+
+    # ── Запуск веб-сервера для Render (Keep-Alive) ──
+    await start_web_server()
 
     # ── Startup ──
     bot_info = await bot.get_me()
